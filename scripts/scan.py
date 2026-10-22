@@ -2,10 +2,10 @@
 """Gratis PrijsProfeet-scan. Geen niet-gecontroleerde deals publiceren."""
 import json, sys, urllib.request, urllib.parse, datetime, pathlib, hashlib, re
 BASE="https://www.prijsprofeet.nl/api/v1/search"
-TERMS=["kip","kwark","skyr","eieren","zalm","tonijn","spinazie","groente","banaan","noten","wraps","melk","olijfolie","wasmiddel","vaatwastabletten","rituals","janzen","earth 46","doucheschuim","deodorant","deo","shower foam","geurstokjes","handzeep","bodylotion","douchegel","huisparfum","luchtverfrisser","sandelhout","cederhout"]
+TERMS=["kip","kwark","skyr","eieren","zalm","tonijn","spinazie","groente","banaan","noten","wraps","melk","olijfolie","wasmiddel","vaatwastabletten","rituals","janzen","earth 46","doucheschuim","deodorant","deo","shower foam","geurstokjes","handzeep","bodylotion","douchegel","huisparfum","luchtverfrisser","sandelhout","cederhout","knijpkwark","knijpzak","proteinekwark","proteïnekwark"]
 RETAILERS={"albert_heijn":"Albert Heijn","jumbo":"Jumbo","lidl":"Lidl","aldi":"Aldi","dirk":"Dirk","plus":"PLUS","hoogvliet":"Hoogvliet","vomar":"Vomar"}
 PREMIUM={"rituals","janzen","earth 46","doucheschuim","deodorant","deo","shower foam","geurstokjes","handzeep","bodylotion","douchegel","huisparfum","luchtverfrisser","sandelhout","cederhout"}
-FOOD={"kip","kwark","skyr","eieren","zalm","tonijn","spinazie","groente","banaan","noten","wraps","melk","olijfolie"}
+FOOD={"kip","kwark","skyr","eieren","zalm","tonijn","spinazie","groente","banaan","noten","wraps","melk","olijfolie","knijpkwark","knijpzak","proteinekwark","proteïnekwark"}
 TODAY=datetime.datetime.now(datetime.timezone.utc).date()
 def get(term):
     params=urllib.parse.urlencode({"q":term,"page_size":50})
@@ -80,7 +80,8 @@ def scan():
         except Exception as exc: warnings.append(term+": "+str(exc)[:180])
     if not successful:
         raise RuntimeError("Geen enkele API-aanroep gelukt: bestaand deals.json blijft ongewijzigd. "+str(warnings[:3]))
-    arr=compare_exact(list(out.values()))\n    arr=sorted(arr,key=lambda p:(p["exact_cheapest"] is True,p["discount_percent"] or 0),reverse=True)
+    arr=compare_exact(list(out.values()))
+    arr=sorted(arr,key=lambda p:(p["exact_cheapest"] is True,p["discount_percent"] or 0),reverse=True)
     result={"last_updated":datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),"deals":arr[:1000],"warnings":warnings+["Vergelijkingen met Action, Zeeman en huismerken ontbreken zolang hun actuele prijsdata niet aangesloten is. EAN-vergelijking dekt uitsluitend exact dezelfde producten. Deze API dekt alleen aangesloten supermarktproducten. Rituals/Janzen buiten supermarkten, Action, Kruidvat en dupes zijn nog niet volledig aangesloten. Geen historische prijscontrole beschikbaar op gratis API."],"sources":{"PrijsProfeet":"OK","failed_queries":len(warnings)}}
     pathlib.Path("deals.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     print(f"{len(arr)} actieve deals, {successful} API-queries geslaagd, {len(warnings)} waarschuwingen")
