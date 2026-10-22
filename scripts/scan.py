@@ -15,7 +15,7 @@ def get(term):
         return json.load(f)
 def comparable_unit(title, price):
     name=title.lower().replace(",", ".")
-    for pat,unit,divisor in [(r"(\\d+)\\s*(?:wasbeurten|wasbeurt|wasjes|sc)\\b", "wasbeurt", 1),(r"(\\d+(?:\\.\\d+)?)\\s*kg\\b", "kg", 1),(r"(\\d+(?:\\.\\d+)?)\\s*g\\b", "kg", 1000),(r"(\\d+(?:\\.\\d+)?)\\s*ml\\b", "liter", 1000),(r"(\\d+(?:\\.\\d+)?)\\s*(?:liter|ltr)\\b", "liter", 1)]:
+    for pat,unit,divisor in [(r"(\d+)\s*(?:wasbeurten|wasbeurt|wasjes|sc)\b", "wasbeurt", 1),(r"(\d+(?:\.\d+)?)\s*kg\b", "kg", 1),(r"(\d+(?:\.\d+)?)\s*g\b", "kg", 1000),(r"(\d+(?:\.\d+)?)\s*ml\b", "liter", 1000),(r"(\d+(?:\.\d+)?)\s*(?:liter|ltr)\b", "liter", 1)]:
         m=re.search(pat,name)
         if m:
             qty=float(m.group(1))/divisor
