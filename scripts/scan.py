@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Gratis PrijsProfeet-scan. Geen niet-gecontroleerde deals publiceren."""
-import json, sys, urllib.request, urllib.parse, datetime, pathlib, hashlib
+import json, sys, urllib.request, urllib.parse, datetime, pathlib, hashlib, re
 BASE="https://www.prijsprofeet.nl/api/v1/search"
 TERMS=["kip","kwark","skyr","eieren","zalm","tonijn","spinazie","groente","banaan","noten","wraps","melk","olijfolie","wasmiddel","vaatwastabletten","rituals","janzen","earth 46","doucheschuim","deodorant","deo","shower foam","geurstokjes","handzeep","bodylotion","douchegel","huisparfum","luchtverfrisser","sandelhout","cederhout"]
 RETAILERS={"albert_heijn":"Albert Heijn","jumbo":"Jumbo","lidl":"Lidl","aldi":"Aldi","dirk":"Dirk","plus":"PLUS","hoogvliet":"Hoogvliet","vomar":"Vomar"}
@@ -13,6 +13,26 @@ def get(term):
     request=urllib.request.Request(url,headers={"User-Agent":"KansenradarPersoonlijk/1.0 (+https://github.com/DASPHHS/Kansenradar)","Accept":"application/json"})
     with urllib.request.urlopen(request,timeout=25) as f:
         return json.load(f)
+def comparable_unit(title, price):
+    name=title.lower().replace(",", ".")
+    for pat,unit,divisor in [(r"(\\d+)\\s*(?:wasbeurten|wasbeurt|wasjes|sc)\\b", "wasbeurt", 1),(r"(\\d+(?:\\.\\d+)?)\\s*kg\\b", "kg", 1),(r"(\\d+(?:\\.\\d+)?)\\s*g\\b", "kg", 1000),(r"(\\d+(?:\\.\\d+)?)\\s*ml\\b", "liter", 1000),(r"(\\d+(?:\\.\\d+)?)\\s*(?:liter|ltr)\\b", "liter", 1)]:
+        m=re.search(pat,name)
+        if m:
+            qty=float(m.group(1))/divisor
+            if qty: return {"unit":unit,"price_per_unit":round(price/qty,3)}
+    return None
+
+def compare_exact(items):
+    indexed={}
+    for d in items:
+        if len(d.get("ean",""))>=8: indexed.setdefault(d["ean"],[]).append(d)
+    for d in items:
+        alt=sorted([x for x in indexed.get(d.get("ean"),[]) if x["store"]!=d["store"]],key=lambda x:x["price"])
+        d["other_stores"]=[{"store":x["store"],"price":x["price"],"url":x["url"]} for x in alt[:5]]
+        d["exact_cheapest"]=None if not alt else d["price"]<=alt[0]["price"]
+        d["cheaper_elsewhere_percent"]=round((d["price"]-alt[0]["price"])/d["price"]*100,1) if alt and alt[0]["price"]<d["price"] else 0 if alt else None
+    return items
+
 def scan():
     warnings=[]; out={}; successful=0
     for term in TERMS:
@@ -40,12 +60,12 @@ def scan():
                 source=p.get("url") or p.get("product_url")
                 if not isinstance(source,str) or not source.startswith("https://"):
                     source="https://www.prijsprofeet.nl/api/v1/search?"+urllib.parse.urlencode({"q":name[:55]})
-                out[key]={"id":key,"title":name,"store":RETAILERS[retailer],"category":"food" if term in FOOD else "premium" if term in PREMIUM else "home","price":round(price,2),"original_price":round(old,2) if isinstance(old,(int,float)) and old>price else None,"discount_percent":round(saving,1) if saving is not None else None,"valid_until":end,"url":source,"verified":True,"note":"Aanbieding uit PrijsProfeet, controleer beschikbaarheid en afrekenprijs bij de winkel.","source":"PrijsProfeet"}
+                out[key]={"ean":str(p.get("ean") or code if code.isdigit() else ""), "unit":comparable_unit(name,price), "id":key,"title":name,"store":RETAILERS[retailer],"category":"food" if term in FOOD else "premium" if term in PREMIUM else "home","price":round(price,2),"original_price":round(old,2) if isinstance(old,(int,float)) and old>price else None,"discount_percent":round(saving,1) if saving is not None else None,"valid_until":end,"url":source,"verified":True,"note":"Aanbieding uit PrijsProfeet, controleer beschikbaarheid en afrekenprijs bij de winkel.","source":"PrijsProfeet"}
         except Exception as exc: warnings.append(term+": "+str(exc)[:180])
     if not successful:
         raise RuntimeError("Geen enkele API-aanroep gelukt: bestaand deals.json blijft ongewijzigd. "+str(warnings[:3]))
-    arr=sorted(out.values(),key=lambda p:(p["discount_percent"] or 0),reverse=True)
-    result={"last_updated":datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),"deals":arr[:350],"warnings":warnings+["Deze API dekt alleen aangesloten supermarktproducten. Rituals/Janzen buiten supermarkten, Action, Kruidvat en dupes zijn nog niet volledig aangesloten. Geen historische prijscontrole beschikbaar op gratis API."],"sources":{"PrijsProfeet":"OK","failed_queries":len(warnings)}}
+    arr=compare_exact(list(out.values()))\n    arr=sorted(arr,key=lambda p:(p["exact_cheapest"] is True,p["discount_percent"] or 0),reverse=True)
+    result={"last_updated":datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),"deals":arr[:1000],"warnings":warnings+["Vergelijkingen met Action, Zeeman en huismerken ontbreken zolang hun actuele prijsdata niet aangesloten is. EAN-vergelijking dekt uitsluitend exact dezelfde producten. Deze API dekt alleen aangesloten supermarktproducten. Rituals/Janzen buiten supermarkten, Action, Kruidvat en dupes zijn nog niet volledig aangesloten. Geen historische prijscontrole beschikbaar op gratis API."],"sources":{"PrijsProfeet":"OK","failed_queries":len(warnings)}}
     pathlib.Path("deals.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     print(f"{len(arr)} actieve deals, {successful} API-queries geslaagd, {len(warnings)} waarschuwingen")
 if __name__=="__main__":scan()
