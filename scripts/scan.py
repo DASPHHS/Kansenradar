@@ -31,6 +31,22 @@ def compare_exact(items):
         d["other_stores"]=[{"store":x["store"],"price":x["price"],"url":x["url"]} for x in alt[:5]]
         d["exact_cheapest"]=None if not alt else d["price"]<=alt[0]["price"]
         d["cheaper_elsewhere_percent"]=round((d["price"]-alt[0]["price"])/d["price"]*100,1) if alt and alt[0]["price"]<d["price"] else 0 if alt else None
+    for d in items:
+        name=d["title"].lower()
+        category=None
+        if "wasmiddel" in name:
+            category="capsules" if "capsul" in name else "poeder" if "poeder" in name else "vloeibaar" if "vloeibaar" in name else None
+        d["alternative_type"]=category
+        if category and d.get("unit") and d["unit"].get("unit")=="wasbeurt":
+            alternatives=[]
+            for other in items:
+                oname=other["title"].lower()
+                otype="capsules" if "capsul" in oname else "poeder" if "poeder" in oname else "vloeibaar" if "vloeibaar" in oname else None
+                if other["id"]!=d["id"] and otype==category and other.get("unit") and other["unit"].get("unit")=="wasbeurt":
+                    alternatives.append(other)
+            alternatives.sort(key=lambda x:x["unit"]["price_per_unit"])
+            d["alternatives"]=[{"title":x["title"],"store":x["store"],"price_per_unit":x["unit"]["price_per_unit"],"url":x["url"]} for x in alternatives[:3]]
+        else:d["alternatives"]=[]
     return items
 
 def scan():
