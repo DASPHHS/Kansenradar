@@ -1,1 +1,1 @@
-self.addEventListener('install',event=>{event.waitUntil(caches.open('kansenradar-v1').then(c=>c.addAll(['./','./index.html','./manifest.webmanifest'])))});self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(url.pathname.endsWith('deals.json'))return;event.respondWith(fetch(event.request).catch(()=>caches.match(event.request)))});
+self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',event=>event.waitUntil(self.registration.unregister().then(()=>self.clients.matchAll()).then(cs=>cs.forEach(c=>c.navigate(c.url)))));
